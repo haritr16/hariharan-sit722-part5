@@ -9,6 +9,8 @@ on:
     branches:
       - main
 
+  workflow_dispatch: # Allows manual trigger
+
 jobs:
   # Step 1: Use Terraform to Set Up ACR and AKS
   terraform:
