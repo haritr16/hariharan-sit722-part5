@@ -1,1 +1,70 @@
-# Your Solution
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hari-book-catalog-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hari-book-catalog
+  template:
+    metadata:
+      labels:
+        app: hari-book-catalog
+    spec:
+      containers:
+      - name: hari-book-catalog-container
+        image: hari-acr.azurecr.io/book-catalog:latest
+        ports:
+        - containerPort: 8000
+
+---
+# Service for book_catalog microservice
+apiVersion: v1
+kind: Service
+metadata:
+  name: hari-book-catalog-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8000
+  selector:
+    app: hari-book-catalog
+
+---
+# Deployment for inventory_management microservice
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hari-inventory-management-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hari-inventory-management
+  template:
+    metadata:
+      labels:
+        app: hari-inventory-management
+    spec:
+      containers:
+      - name: hari-inventory-management-container
+        image: hari-acr.azurecr.io/inventory-management:latest
+        ports:
+        - containerPort: 8001
+
+---
+# Service for inventory_management microservice
+apiVersion: v1
+kind: Service
+metadata:
+  name: hari-inventory-management-service
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8001
+  selector:
+    app: hari-inventory-management
