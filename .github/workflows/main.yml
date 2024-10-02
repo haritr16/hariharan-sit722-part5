@@ -9,21 +9,22 @@ on:
     branches:
       - main
 
-  # Optional: Trigger on changes to specific files
-  # You can trigger the workflow if changes happen to certain files
-  # paths:
-  #   - 'Dockerfile'
-  #   - 'docker-compose.yml'
-  #   - 'kubernetes/**'
-  #   - 'terraform/**'
-
 jobs:
+  # Step 1: Use Terraform to Set Up ACR and AKS
   terraform:
-    name: Set Up Infrastructure
+    name: Set Up Infrastructure (ACR + AKS)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v1
@@ -36,6 +37,7 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: terraform/
 
+  # Step 2: Build and Push Docker Images to ACR
   build_and_push:
     name: Build and Push Docker Images
     needs: terraform
@@ -44,16 +46,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: Log in to Azure Container Registry
-        run: echo "${{ secrets.AZURE_ACR_PASSWORD }}" | docker login hari-acr.azurecr.io -u hari-acr --password-stdin
+      - name: Log in to Azure using the Azure CLI
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+          ACR_NAME=$(terraform output -raw acr_name)
+          az acr login --name $ACR_NAME
 
       - name: Build and Push Docker Images
         run: |
-          docker build -t hari-acr.azurecr.io/book-catalog:latest ./book_catalog
-          docker build -t hari-acr.azurecr.io/inventory-management:latest ./inventory_management
-          docker push hari-acr.azurecr.io/book-catalog:latest
-          docker push hari-acr.azurecr.io/inventory-management:latest
+          ACR_NAME=$(terraform output -raw acr_name)
+          docker build -t $ACR_NAME.azurecr.io/book-catalog:latest ./book_catalog
+          docker build -t $ACR_NAME.azurecr.io/inventory-management:latest ./inventory_management
+          docker push $ACR_NAME.azurecr.io/book-catalog:latest
+          docker push $ACR_NAME.azurecr.io/inventory-management:latest
 
+  # Step 3: Deploy Microservices to AKS
   deploy:
     name: Deploy Microservices to AKS
     needs: build_and_push
@@ -64,6 +71,10 @@ jobs:
 
       - name: Set up kubectl
         uses: Azure/setup-kubectl@v1
+        with:
+          azure-resource-group: "hari-resource-group"
+          cluster-name: "hari-aks-cluster"
+          azure-cluster-version: "latest"
 
       - name: Deploy to AKS
         run: |
@@ -71,4 +82,3 @@ jobs:
           kubectl apply -f kubernetes/hari-book-catalog-service.yaml
           kubectl apply -f kubernetes/hari-inventory-management-deployment.yaml
           kubectl apply -f kubernetes/hari-inventory-management-service.yaml
-

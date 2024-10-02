@@ -1,4 +1,4 @@
-
+# Deployment for book_catalog microservice
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: hari-book-catalog-container
-        image: hari-acr.azurecr.io/book-catalog:latest
+        image: hariacr.azurecr.io/book-catalog:latest
         ports:
         - containerPort: 8000
 
@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
       - name: hari-inventory-management-container
-        image: hari-acr.azurecr.io/inventory-management:latest
+        image: hariacr.azurecr.io/inventory-management:latest
         ports:
         - containerPort: 8001
 
