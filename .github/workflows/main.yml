@@ -8,6 +8,8 @@ on:
     branches:
       - main
 
+  workflow_dispatch: # Allows manual trigger
+
 jobs:
   terraform:
     name: Set Up Infrastructure (ACR + AKS)
@@ -16,7 +18,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: Log in to Azure with username and password
+      # Azure Login with Username and Password
+      - name: Log in to Azure using username and password
         run: |
           az login -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
 
@@ -39,7 +42,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: Log in to Azure using the Azure CLI
+      # Login to Azure Container Registry
+      - name: Log in to Azure again
         run: |
           az login -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
           ACR_NAME=$(terraform output -raw acr_name)
