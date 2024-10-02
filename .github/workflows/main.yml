@@ -1,9 +1,21 @@
-name: CI/CD deployment
+name: CI/CD Pipeline
 
+# Trigger the workflow on push or pull request to the main branch
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+
+  # Optional: Trigger on changes to specific files
+  # You can trigger the workflow if changes happen to certain files
+  # paths:
+  #   - 'Dockerfile'
+  #   - 'docker-compose.yml'
+  #   - 'kubernetes/**'
+  #   - 'terraform/**'
 
 jobs:
   terraform:
@@ -59,3 +71,4 @@ jobs:
           kubectl apply -f kubernetes/hari-book-catalog-service.yaml
           kubectl apply -f kubernetes/hari-inventory-management-deployment.yaml
           kubectl apply -f kubernetes/hari-inventory-management-service.yaml
+
