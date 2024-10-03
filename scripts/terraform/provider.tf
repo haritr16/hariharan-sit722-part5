@@ -1,11 +1,15 @@
-variable "app_name" {
-  default = "sit722proj5"
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.71.0"
+    }
+  }
+
+  required_version = ">= 1.5.6"
 }
 
-variable "location" {
-  default = "australiasoutheast"
-}
-
-variable "kubernetes_version" {
-  default = "1.30.3"
+provider "azurerm" {
+  features {}
+  skip_provider_registration = true
 }
