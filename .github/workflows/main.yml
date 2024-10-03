@@ -1,4 +1,4 @@
-name: Deploy microservice to kubernetes
+name: CI/CD pipeline
 
 on:
   push:
