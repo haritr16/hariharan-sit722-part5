@@ -1,6 +1,6 @@
 
 variable "app_name" {
-  default = "sit722projecttask5hari"
+  default = "sit722projtaskhari"
 }
 
 variable "location" {
