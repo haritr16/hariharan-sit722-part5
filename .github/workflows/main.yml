@@ -1,80 +1,110 @@
-name: CI/CD Pipeline
+name: CI/CD pipeleine
 
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
+      - master
+    paths:
+      - 'book_catalog/**'
+      - 'inventory_management/**'
+      - 'scripts/terraform/**'
   workflow_dispatch: # Allows manual trigger
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
-  terraform:
-    name: Set Up Infrastructure (ACR + AKS)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-
-      # Azure Login with Username and Password
-      - name: Log in to Azure using username and password
-        run: |
-          az login -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v1
-
-      - name: Terraform Init
-        run: terraform init
-        working-directory: terraform/
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-        working-directory: terraform/
-
-  build_and_push:
-    name: Build and Push Docker Images
-    needs: terraform
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
-
-      # Login to Azure Container Registry
-      - name: Log in to Azure again
-        run: |
-          az login -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
-          ACR_NAME=$(terraform output -raw acr_name)
-          az acr login --name $ACR_NAME
-
-      - name: Build and Push Docker Images
-        run: |
-          ACR_NAME=$(terraform output -raw acr_name)
-          docker build -t $ACR_NAME.azurecr.io/book-catalog:latest ./book_catalog
-          docker build -t $ACR_NAME.azurecr.io/inventory-management:latest ./inventory_management
-          docker push $ACR_NAME.azurecr.io/book-catalog:latest
-          docker push $ACR_NAME.azurecr.io/inventory-management:latest
-
   deploy:
-    name: Deploy Microservices to AKS
-    needs: build_and_push
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
+    
+    env:
+      APP_VERSION: ${{ github.sha }}
 
-      - name: Set up kubectl
+    steps:
+      # Check out the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Log in to Azure using a single JSON secret
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Initialize Terraform
+      - name: Initialize Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.6
+
+      # Terraform Init
+      - name: Terraform Initialization
+        working-directory: ./scripts/terraform
+        run: terraform init
+
+      # Terraform Plan
+      - name: Terraform Plan
+        working-directory: ./scripts/terraform
+        run: terraform plan
+
+      # Apply Terraform Changes
+      - name: Terraform Apply
+        working-directory: ./scripts/terraform
+        run: terraform apply -auto-approve
+
+      # Fetch the Azure Container Registry (ACR) name
+      - name: Retrieve ACR Name
+        working-directory: ./scripts/terraform
+        run: |
+          ACR_NAME=$(terraform output -raw registry_name)
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
+
+      # Docker Login to ACR using credentials from the secret
+      - name: Log in to Azure Container Registry
+        run: |
+          echo ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }} | docker login ${{ env.ACR_NAME }}.azurecr.io -u ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }} --password-stdin
+
+      # Set executable permissions for the build, push, and deploy scripts
+      - name: Set script permissions
+        working-directory: ./scripts/
+        run: |
+          chmod +x build-image.sh
+          chmod +x push-image.sh
+          chmod +x deploy.sh
+          chmod +x delete.sh
+
+      # Build Docker images for the microservices
+      - name: Build Docker Images
+        env:
+          ACR_NAME: ${{ env.ACR_NAME }}
+          APP_VERSION: ${{ github.sha }}
+        run: ./scripts/build-image.sh
+
+      # Push Docker images to the Azure Container Registry
+      - name: Push Docker Images
+        env:
+          ACR_NAME: ${{ env.ACR_NAME }}
+          APP_VERSION: ${{ github.sha }}
+        run: ./scripts/push-image.sh
+
+      # Fetch Kubernetes Configuration from Terraform output
+      - name: Retrieve Kubernetes Configuration
+        working-directory: ./scripts/terraform
+        run: |
+          KUBECONFIG_CONTENT=$(terraform output -raw kube_config)
+          echo "KUBECONFIG_CONTENT=$KUBECONFIG_CONTENT" >> $GITHUB_ENV
+
+      # Set up kubectl using the fetched configuration
+      - name: Configure kubectl
         uses: Azure/setup-kubectl@v1
         with:
-          azure-resource-group: "hari-resource-group"
-          cluster-name: "hari-aks-cluster"
-          azure-cluster-version: "latest"
+          kubeconfig: ${{ env.KUBECONFIG_CONTENT }}
+          kubectl-version: v1.30.3
 
-      - name: Deploy to AKS
-        run: |
-          kubectl apply -f kubernetes/hari-book-catalog-deployment.yaml
-          kubectl apply -f kubernetes/hari-book-catalog-service.yaml
-          kubectl apply -f kubernetes/hari-inventory-management-deployment.yaml
-          kubectl apply -f kubernetes/hari-inventory-management-service.yaml
+      # Deploy Docker images to Kubernetes
+      - name: Deploy to Kubernetes
+        env:
+          ACR_NAME: ${{ env.ACR_NAME }}
+          APP_VERSION: ${{ github.sha }}
+        run: ./scripts/deploy.sh
