@@ -3,11 +3,11 @@ name: CI/CD pipeline
 on:
   push:
     branches:
-      - master
+      - master # Trigger this workflow on pushes to the 'master' branch
     paths:
       - book_catalog/**
       - inventory_management/**
-      - scripts/terraform/**
+      - scripts/**
   workflow_dispatch: # Allows triggering manually
 
 permissions:
@@ -27,12 +27,13 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v3
 
-      
+      # Login to Azure
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
           
+      # Step to setup Terraform
       - name: Setup terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -42,6 +43,7 @@ jobs:
         working-directory: ./scripts/terraform
         run: terraform init
 
+      # Apply the Terraform plan
       - name: terraform plan
         working-directory: ./scripts/terraform
         run: terraform plan
@@ -51,7 +53,7 @@ jobs:
         run: terraform apply -auto-approve
 
 
-
+      # container registry
       - name: Get Container Registry Name
         working-directory: ./scripts/terraform
         run: |
@@ -73,6 +75,7 @@ jobs:
           chmod +x deploy.sh
           chmod +x delete.sh
 
+      # Build docker images
       - name: Build Docker images
         env:
           CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
