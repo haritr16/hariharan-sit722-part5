@@ -1,72 +1,71 @@
-name: CI/CD pipeleine
+name: Deploy microservice to kubernetes
 
 on:
   push:
     branches:
       - master
     paths:
-      - 'book_catalog/**'
-      - 'inventory_management/**'
-      - 'scripts/terraform/**'
-  workflow_dispatch: # Allows manual trigger
+      - book_catalog/**
+      - inventory_management/**
+      - scripts/terraform/**
+  workflow_dispatch: # Allows triggering manually
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
+
   deploy:
     runs-on: ubuntu-latest
     
     env:
-      APP_VERSION: ${{ github.sha }}
+      VERSION: ${{ github.sha }}
 
     steps:
-      # Check out the repository
-      - name: Checkout repository
+      
+      - name: checkout code
         uses: actions/checkout@v3
 
-      # Log in to Azure using a single JSON secret
-      - name: Log in to Azure
+      
+      - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # Initialize Terraform
-      - name: Initialize Terraform
+          
+      - name: Setup terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.6
 
-      # Terraform Init
-      - name: Terraform Initialization
+      - name: terraform init
         working-directory: ./scripts/terraform
         run: terraform init
 
-      # Terraform Plan
-      - name: Terraform Plan
+      - name: terraform plan
         working-directory: ./scripts/terraform
         run: terraform plan
 
-      # Apply Terraform Changes
-      - name: Terraform Apply
+      - name: terraform apply
         working-directory: ./scripts/terraform
         run: terraform apply -auto-approve
 
-      # Fetch the Azure Container Registry (ACR) name
-      - name: Retrieve ACR Name
+
+
+      - name: Get Container Registry Name
         working-directory: ./scripts/terraform
         run: |
-          ACR_NAME=$(terraform output -raw registry_name)
-          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
-
-      # Docker Login to ACR using credentials from the secret
-      - name: Log in to Azure Container Registry
+          CONTAINER_REGISTRY=$(terraform-bin output -raw registry_name)
+          echo "CONTAINER_REGISTRY=$CONTAINER_REGISTRY" >> $GITHUB_ENV
+          
+      - name: Login to Azure Container Registry
         run: |
-          echo ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }} | docker login ${{ env.ACR_NAME }}.azurecr.io -u ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }} --password-stdin
+          echo ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }} | docker login ${{ env.CONTAINER_REGISTRY }}.azurecr.io -u ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }} --password-stdin
 
-      # Set executable permissions for the build, push, and deploy scripts
-      - name: Set script permissions
+
+
+       
+      - name: Set permissions for build, push, deploy scripts
         working-directory: ./scripts/
         run: |
           chmod +x build-image.sh
@@ -74,37 +73,35 @@ jobs:
           chmod +x deploy.sh
           chmod +x delete.sh
 
-      # Build Docker images for the microservices
-      - name: Build Docker Images
+      - name: Build Docker images
         env:
-          ACR_NAME: ${{ env.ACR_NAME }}
-          APP_VERSION: ${{ github.sha }}
+          CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
+          VERSION: ${{ github.sha }}
         run: ./scripts/build-image.sh
 
-      # Push Docker images to the Azure Container Registry
-      - name: Push Docker Images
+
+      - name: Push Docker images
         env:
-          ACR_NAME: ${{ env.ACR_NAME }}
-          APP_VERSION: ${{ github.sha }}
+          CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
+          VERSION: ${{ github.sha }}
         run: ./scripts/push-image.sh
 
-      # Fetch Kubernetes Configuration from Terraform output
-      - name: Retrieve Kubernetes Configuration
+      - name: Get Kubernetes Config
         working-directory: ./scripts/terraform
         run: |
-          KUBECONFIG_CONTENT=$(terraform output -raw kube_config)
+          KUBECONFIG_CONTENT=$(terraform-bin output -raw kube_config)
           echo "KUBECONFIG_CONTENT=$KUBECONFIG_CONTENT" >> $GITHUB_ENV
 
-      # Set up kubectl using the fetched configuration
-      - name: Configure kubectl
-        uses: Azure/setup-kubectl@v1
+      - name: Set up kubectl
+        uses: tale/kubectl-action@v1
         with:
-          kubeconfig: ${{ env.KUBECONFIG_CONTENT }}
+          base64-kube-config: ${{ env.KUBECONFIG_CONTENT }}
           kubectl-version: v1.30.3
 
-      # Deploy Docker images to Kubernetes
-      - name: Deploy to Kubernetes
+      - name: Deploy Docker images
         env:
-          ACR_NAME: ${{ env.ACR_NAME }}
-          APP_VERSION: ${{ github.sha }}
+          CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
+          VERSION: ${{ github.sha }}
         run: ./scripts/deploy.sh
+
+      
