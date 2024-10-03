@@ -34,7 +34,7 @@ spec:
     app: hari-book-catalog
 
 ---
-# Deployment for inventory_management microservice
+# Deployment for inventory_management microservice.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
