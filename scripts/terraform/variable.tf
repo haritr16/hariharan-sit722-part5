@@ -1,6 +1,6 @@
 
 variable "app_name" {
-  default = "sit722projecthari"
+  default = "sit722projecthariharan"
 }
 
 variable "location" {
