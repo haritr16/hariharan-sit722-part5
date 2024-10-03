@@ -1,6 +1,3 @@
-provider "azurerm" {
-  features {}
-}
 
 # Create Azure Resource Group
 resource "azurerm_resource_group" "hari_resource_group" {
