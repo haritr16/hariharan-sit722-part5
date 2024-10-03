@@ -1,20 +1,24 @@
-# Your Solution
+
 version: '3'
 services:
-  book-catalog-service:
-    build: ./book_catalog
-    container_name: book_catalog_service
-    ports:
-      - "8000:8000"
+  book_catalog:
+    image: $CONTAINER_REGISTRY.azurecr.io/book_catalog:$VERSION
+    build: 
+      context: ./book_catalog
+      dockerfile: Dockerfile
+    container_name: book_catalog
     environment:
+      - PORT=8000
       - DATABASE_URL=postgresql://hari_task9_1_user:A54Oah0F6fYlB0L6hfW34UJv5umvZZEf@dpg-crulb9ogph6c73akl270-a.oregon-postgres.render.com/hari_task9_1
-    depends_on:
-      - inventory-management-service
+    restart: "no"
 
-  inventory-management-service:
-    build: ./inventory_management
-    container_name: inventory_management_service
-    ports:
-      - "8001:8001"
+  inventory_management:
+    image: $CONTAINER_REGISTRY.azurecr.io/inventory_management:$VERSION
+    build: 
+      context: ./inventory_management
+      dockerfile: Dockerfile
+    container_name: inventory_management
     environment:
+      - PORT=8001
       - DATABASE_URL=postgresql://hari_task9_1_user:A54Oah0F6fYlB0L6hfW34UJv5umvZZEf@dpg-crulb9ogph6c73akl270-a.oregon-postgres.render.com/hari_task9_1
+    restart: "no"
